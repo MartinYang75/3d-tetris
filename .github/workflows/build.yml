@@ -5,6 +5,8 @@ on:
 
 jobs:
   build-tauri:
+    permissions:
+      contents: write
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -24,8 +26,12 @@ jobs:
       - name: Build Desktop Exe
         run: npx @tauri-apps/cli build --no-bundle
 
-      - name: Upload Exe Artifact
-        uses: actions/upload-artifact@v4
+      - name: Publish to GitHub Release
+        uses: ncipollo/release-action@v1
         with:
-          name: Tetris3D-Portable
-          path: src-tauri/target/release/tetris-3d.exe
+          tag: "v1.0.0"
+          name: "3D Tetris v1.0.0"
+          body: "Windows 单文件独立免安装版"
+          artifacts: "src-tauri/target/release/tetris-3d.exe"
+          allowUpdates: true
+          makeLatest: true
