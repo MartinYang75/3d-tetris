@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "identifier": "com.martiny.tetris3d",
   "build": {
-    "frontendDist": "../"
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
   },
   "app": {
     "withGlobalTauri": false,
@@ -23,7 +24,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": "nsis",
     "icon": [
       "icons/icon.ico"
     ]
