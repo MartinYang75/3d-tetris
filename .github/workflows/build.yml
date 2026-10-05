@@ -5,8 +5,6 @@ on:
 
 jobs:
   build-tauri:
-    permissions:
-      contents: write
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -23,22 +21,11 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Build Tauri App
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: v1.0.0
-          releaseName: '3D Tetris v1.0.0'
-          releaseBody: '自動生成的 Windows 桌面版安裝包與免安裝綠色版程式'
-          releaseDraft: false
-          prerelease: false
+      - name: Build Desktop Exe
+        run: npx @tauri-apps/cli build --no-bundle
 
-      - name: Upload Standalone Portable Exe
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+      - name: Upload Exe Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v1.0.0
-          files: src-tauri/target/release/tetris-3d.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: Tetris3D-Portable
+          path: src-tauri/target/release/tetris-3d.exe
