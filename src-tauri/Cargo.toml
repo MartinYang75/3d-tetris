@@ -1,0 +1,12 @@
+[package]
+name = "tetris-3d"
+version = "1.0.0"
+description = "3D Tetris Game"
+authors = ["Martin Y"]
+edition = "2026"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
