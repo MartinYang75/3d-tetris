@@ -1,0 +1,6 @@
+{
+  "name": "3D 俄罗斯方块原型",
+  "description": "基于原生 HTML、CSS、JavaScript 和 Three.js 的极简 3D 俄罗斯方块堆叠原型",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,2668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D 俄罗斯方块原型</title>
+  <meta name="description" content="基于原生 HTML、CSS、JavaScript 和 Three.js 的极简 3D 俄罗斯方块堆叠原型" />
+  <meta property="og:title" content="3D 俄罗斯方块原型" />
+  <meta property="og:description" content="基于原生 HTML、CSS、JavaScript 和 Three.js 的极简 3D 俄罗斯方块堆叠原型" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Google Fonts for typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js & OrbitControls via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #080c14;
+      color: #e2e8f0;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Top HUD: Strictly Single-line Row */
+    .top-bar {
+      position: absolute;
+      top: 10px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 20;
+      pointer-events: none;
+      flex-wrap: nowrap;
+      gap: 8px;
+    }
+
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: nowrap;
+      flex-shrink: 0;
+    }
+
+    .brand-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #f8fafc;
+      white-space: nowrap;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+      margin-right: 2px;
+    }
+
+    .stat-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 3px 6px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: #94a3b8;
+      pointer-events: auto;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .stat-badge strong {
+      color: #38bdf8;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.84rem;
+    }
+
+    .stat-badge.highlight strong {
+      color: #f59e0b;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      pointer-events: auto;
+      flex-wrap: nowrap;
+      flex-shrink: 0;
+      justify-content: flex-end;
+    }
+
+    /* Size Selector Segmented Control */
+    .size-selector {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 2px;
+      gap: 1px;
+      flex-shrink: 0;
+    }
+
+    .size-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 0.7rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 3px 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .size-btn:hover {
+      color: #f8fafc;
+    }
+
+    .size-btn.active {
+      background: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 1px 4px rgba(2, 132, 199, 0.4);
+    }
+
+    /* Speed Control Selector */
+    .speed-control-wrapper {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 2px 5px;
+      gap: 3px;
+      flex-shrink: 0;
+      transition: opacity 0.2s;
+    }
+
+    .speed-control-wrapper.disabled {
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
+    .speed-label {
+      font-size: 0.68rem;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .speed-select {
+      appearance: none;
+      -webkit-appearance: none;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: #38bdf8;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 2px 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .speed-select:focus {
+      border-color: #38bdf8;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #f1f5f9;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 4px 9px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .btn:hover {
+      background: rgba(30, 41, 59, 0.95);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn-sound {
+      border-color: rgba(56, 189, 248, 0.35);
+      color: #7dd3fc;
+    }
+
+    .btn-sound:hover {
+      border-color: #38bdf8;
+      background: rgba(14, 116, 144, 0.4);
+    }
+
+    .btn-sound.muted {
+      border-color: rgba(239, 68, 68, 0.45);
+      color: #f87171;
+      background: rgba(127, 29, 29, 0.35);
+    }
+
+    .btn-practice {
+      border-color: rgba(168, 85, 247, 0.35);
+      color: #d8b4fe;
+    }
+
+    .btn-practice:hover {
+      border-color: #c084fc;
+      background: rgba(88, 28, 135, 0.4);
+    }
+
+    .btn-practice.active {
+      background: #7e22ce;
+      border-color: #a855f7;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+    }
+
+    .btn-primary {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background: #0369a1;
+      border-color: #7dd3fc;
+    }
+
+    /* Left Info & Control Panel (Holds Next Piece 3D + Shortcuts) */
+    .info-panel {
+      position: absolute;
+      top: 56px;
+      left: 14px;
+      z-index: 10;
+      width: 236px;
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 12px;
+      padding: 12px 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .panel-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+    }
+
+    .panel-tag {
+      font-size: 0.62rem;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+    }
+
+    /* Next Block 3D Rotating Preview in Left Panel */
+    .next-canvas-wrapper {
+      width: 100%;
+      height: 68px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 8px;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.1) 0%, rgba(15, 23, 42, 0.65) 80%);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    #next-3d-container {
+      width: 100%;
+      height: 68px;
+    }
+
+    .next-label {
+      margin-top: 4px;
+      margin-bottom: 10px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #e2e8f0;
+      text-align: center;
+    }
+
+    .controls-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 0.7rem;
+    }
+
+    .control-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .control-desc {
+      color: #94a3b8;
+    }
+
+    .key-group {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .key-badge {
+      display: inline-block;
+      min-width: 20px;
+      text-align: center;
+      padding: 2px 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.66rem;
+      color: #f1f5f9;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    .key-badge.accent {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+    }
+
+    /* Right Area: Clean Top-down Radar Panel ONLY */
+    .radar-panel {
+      position: absolute;
+      top: 56px;
+      right: 14px;
+      z-index: 10;
+      width: 160px;
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 12px;
+      padding: 9px 11px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    }
+
+    .radar-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+
+    .radar-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+    }
+
+    .radar-tag {
+      font-size: 0.62rem;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .radar-dial {
+      position: relative;
+      width: 136px;
+      height: 136px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.08) 0%, rgba(15, 23, 42, 0.85) 70%, rgba(2, 6, 23, 0.98) 100%);
+      border: 1.5px solid rgba(56, 189, 248, 0.3);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 18px rgba(14, 165, 233, 0.15);
+    }
+
+    #radar-canvas {
+      width: 136px;
+      height: 136px;
+      display: block;
+    }
+
+    .radar-legend {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      margin-top: 5px;
+      font-size: 0.62rem;
+      color: #94a3b8;
+    }
+
+    .radar-legend-bar {
+      width: 30px;
+      height: 5px;
+      border-radius: 3px;
+      background: linear-gradient(to right, rgba(14, 165, 233, 0.3), rgba(14, 165, 233, 1));
+    }
+
+    /* On-Screen Touch / Click Gamepad */
+    .touch-controls {
+      position: absolute;
+      bottom: 14px;
+      right: 14px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 9px 11px;
+      border-radius: 14px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    }
+
+    .pad-title {
+      font-size: 0.64rem;
+      font-weight: 700;
+      color: #64748b;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      align-self: flex-start;
+      margin-bottom: 1px;
+    }
+
+    .dpad-row {
+      display: flex;
+      gap: 7px;
+    }
+
+    .pad-btn {
+      width: 42px;
+      height: 42px;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      color: #f8fafc;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.1s, transform 0.1s, border-color 0.1s, box-shadow 0.1s;
+    }
+
+    .pad-btn span {
+      font-size: 0.58rem;
+      font-weight: 500;
+      color: #94a3b8;
+    }
+
+    .pad-btn:hover {
+      background: rgba(51, 65, 85, 0.95);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .pad-btn:active, .pad-btn.pressed {
+      transform: scale(0.92);
+      background: #0284c7;
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+    }
+
+    .rot-row {
+      display: flex;
+      gap: 5px;
+      width: 100%;
+    }
+
+    .rot-btn {
+      flex: 1;
+      height: 33px;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 7px;
+      color: #e0f2fe;
+      font-size: 0.68rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s, transform 0.1s, border-color 0.1s, box-shadow 0.1s;
+    }
+
+    .rot-btn span {
+      font-size: 0.54rem;
+      color: #7dd3fc;
+      font-weight: normal;
+    }
+
+    .rot-btn:hover {
+      background: rgba(14, 116, 144, 0.4);
+      border-color: #38bdf8;
+    }
+
+    .rot-btn:active, .rot-btn.pressed {
+      transform: scale(0.92);
+      background: #7e22ce;
+      border-color: #c084fc;
+      box-shadow: 0 0 10px rgba(192, 132, 252, 0.5);
+    }
+
+    .action-btn-row {
+      display: flex;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .action-pad-btn {
+      flex: 1;
+      height: 35px;
+      background: #0284c7;
+      border: 1px solid #38bdf8;
+      border-radius: 7px;
+      color: #ffffff;
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: background 0.1s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    .action-pad-btn.btn-sub {
+      background: rgba(30, 41, 59, 0.85);
+      border-color: rgba(255, 255, 255, 0.16);
+      color: #f1f5f9;
+    }
+
+    .action-pad-btn:hover {
+      background: #0369a1;
+    }
+
+    .action-pad-btn.btn-sub:hover {
+      background: rgba(51, 65, 85, 0.95);
+    }
+
+    .action-pad-btn:active, .action-pad-btn.pressed {
+      transform: scale(0.94);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    /* Screen-Centered Toast: Never Overlaps Left/Right Panels */
+    .clear-toast {
+      position: absolute;
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-15px);
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.96), rgba(168, 85, 247, 0.96));
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      color: #ffffff;
+      padding: 6px 16px;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      z-index: 100;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+
+    .clear-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Modal / Overlay */
+    .game-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(8, 12, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 50;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .overlay-card {
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 32px 40px;
+      text-align: center;
+      max-width: 360px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .overlay-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 6px;
+    }
+
+    .overlay-sub {
+      font-size: 0.86rem;
+      color: #94a3b8;
+      margin-bottom: 20px;
+    }
+
+    .overlay-score-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 14px;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .score-cell-title {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      margin-bottom: 2px;
+    }
+
+    .score-cell-val {
+      font-size: 1.3rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    /* Bottom Perspective Hint */
+    .view-hint {
+      position: absolute;
+      bottom: 14px;
+      left: 14px;
+      z-index: 10;
+      color: #94a3b8;
+      font-size: 0.7rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(8px);
+      padding: 5px 10px;
+      border-radius: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      pointer-events: none;
+    }
+
+    @media (max-width: 900px) {
+      .info-panel {
+        display: none;
+      }
+      .radar-panel {
+        top: 50px;
+        right: 10px;
+        width: 126px;
+        padding: 6px;
+      }
+      .radar-dial, #radar-canvas {
+        width: 108px;
+        height: 108px;
+      }
+      .touch-controls {
+        bottom: 10px;
+        right: 10px;
+        padding: 7px;
+      }
+      .view-hint {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Three.js Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Top Bar: Strictly Single-line Horizontal Alignment -->
+  <header class="top-bar">
+    <div class="brand-cluster">
+      <span class="brand-title">3D 俄罗斯方块</span>
+      <div class="stat-badge highlight">分数: <strong id="hud-score">0</strong></div>
+      <div class="stat-badge">消层: <strong id="hud-lines">0</strong></div>
+      <div class="stat-badge">已下落: <strong id="hud-placed">0</strong></div>
+      <div class="stat-badge">高度: <strong id="hud-height">0/20</strong></div>
+    </div>
+    <div class="top-actions">
+      <!-- Grid Size Selector: 5x5, 7x7, 9x9 -->
+      <div class="size-selector">
+        <button class="size-btn active" data-size="5" id="size-5">5×5</button>
+        <button class="size-btn" data-size="7" id="size-7">7×7</button>
+        <button class="size-btn" data-size="9" id="size-9">9×9</button>
+      </div>
+
+      <!-- Speed Selector: 0.5x ~ 2.0x -->
+      <div class="speed-control-wrapper" id="speed-wrapper" title="调节方块自动下落速度">
+        <span class="speed-label">速度</span>
+        <select id="speed-select" class="speed-select">
+          <option value="0.5">0.5x 慢速</option>
+          <option value="1.0" selected>1.0x 标准</option>
+          <option value="1.5">1.5x 快速</option>
+          <option value="2.0">2.0x 极速</option>
+        </select>
+      </div>
+
+      <!-- Practice Mode Button -->
+      <button class="btn btn-practice" id="btn-practice" title="开启后方块不自动下落，可无限思考">练习模式: 关</button>
+
+      <!-- Sound Toggle Button: 🔊 / 🔇 -->
+      <button class="btn btn-sound" id="btn-sound" title="开启 / 关闭声音 (BGM与音效)">🔊 声音: 开</button>
+
+      <button class="btn" id="btn-pause">暂停</button>
+      <button class="btn btn-primary" id="btn-restart">重新开始</button>
+    </div>
+  </header>
+
+  <!-- Left Info & Controls Helper (Holds Next Piece 3D Preview + Controls) -->
+  <aside class="info-panel">
+    <!-- Next Block 3D Rotating Preview -->
+    <div class="panel-header">
+      <span class="panel-title">下一个方块</span>
+      <span class="panel-tag" style="color: #c084fc; background: rgba(168, 85, 247, 0.18);">NEXT</span>
+    </div>
+    <div class="next-canvas-wrapper">
+      <div id="next-3d-container"></div>
+    </div>
+    <div id="next-piece-label" class="next-label">加载中...</div>
+
+    <!-- Operating Shortcuts List -->
+    <div class="panel-header">
+      <span class="panel-title">视角自适应快捷键</span>
+    </div>
+
+    <div class="controls-list">
+      <div class="control-row">
+        <span class="control-desc">屏幕左 / 右平移</span>
+        <div class="key-group">
+          <span class="key-badge">A 左</span>
+          <span class="key-badge">D 右</span>
+        </div>
+      </div>
+      <div class="control-row">
+        <span class="control-desc">屏幕前 / 后平移</span>
+        <div class="key-group">
+          <span class="key-badge">W 前</span>
+          <span class="key-badge">S 后</span>
+        </div>
+      </div>
+      <div class="control-row">
+        <span class="control-desc">视觉前翻 (Pitch)</span>
+        <div class="key-group"><span class="key-badge accent">R 前翻</span></div>
+      </div>
+      <div class="control-row">
+        <span class="control-desc">水平转向 (Yaw)</span>
+        <div class="key-group"><span class="key-badge accent">T 转向</span></div>
+      </div>
+      <div class="control-row">
+        <span class="control-desc">侧向滚转 (Roll)</span>
+        <div class="key-group"><span class="key-badge accent">F 侧翻</span></div>
+      </div>
+      <div class="control-row">
+        <span class="control-desc">下移一格 / 快速落底</span>
+        <div class="key-group"><span class="key-badge">↓</span> <span class="key-badge">Space</span></div>
+      </div>
+      <div class="control-row">
+        <span class="control-desc">3D 自由旋转视角</span>
+        <span style="color: #64748b; font-size: 0.68rem;">鼠标左键拖拽</span>
+      </div>
+      <div class="control-row">
+        <span class="control-desc">视角缩放</span>
+        <span style="color: #64748b; font-size: 0.68rem;">鼠标滚轮</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Right Area: Top-Down Radar Only -->
+  <div class="radar-panel" id="radar-container">
+    <div class="radar-header">
+      <span class="radar-title">俯视雷达</span>
+      <span class="radar-tag">视角联动</span>
+    </div>
+    <div class="radar-dial">
+      <canvas id="radar-canvas" width="136" height="136"></canvas>
+    </div>
+    <div class="radar-legend">
+      <span>低</span>
+      <div class="radar-legend-bar"></div>
+      <span>高堆叠 (正向数字)</span>
+    </div>
+  </div>
+
+  <!-- Screen-Centered Toast Notification (1.5s Auto-Fade) -->
+  <div class="clear-toast" id="clear-toast">
+    <span>✨</span>
+    <span id="clear-toast-text">消除 1 层! +100 分</span>
+  </div>
+
+  <!-- Floating Touch & Click Pad (Fully Synchronized with View-Relative System) -->
+  <div class="touch-controls">
+    <div class="pad-title">视野平移 (跟随视角)</div>
+    <div class="dpad-row">
+      <button class="pad-btn" id="ctrl-w" title="W 键：朝屏幕视线深处平移">W<span>前</span></button>
+    </div>
+    <div class="dpad-row">
+      <button class="pad-btn" id="ctrl-a" title="A 键：朝屏幕左侧平移">A<span>左</span></button>
+      <button class="pad-btn" id="ctrl-s" title="S 键：朝屏幕近处平移">S<span>后</span></button>
+      <button class="pad-btn" id="ctrl-d" title="D 键：朝屏幕右侧平移">D<span>右</span></button>
+    </div>
+    <div class="pad-title" style="margin-top: 2px;">三轴翻转 (跟随视线)</div>
+    <div class="rot-row">
+      <button class="rot-btn" id="ctrl-r" title="R 键：以视线水平横轴为准视觉前翻">R<span>前翻</span></button>
+      <button class="rot-btn" id="ctrl-t" title="T 键：以垂直轴为准原地水平转向">T<span>转向</span></button>
+      <button class="rot-btn" id="ctrl-f" title="F 键：以摄像机视线轴侧向翻滚">F<span>侧翻</span></button>
+    </div>
+    <div class="action-btn-row">
+      <button class="action-pad-btn btn-sub" id="ctrl-step" title="下落一格">↓ 下移一格</button>
+      <button class="action-pad-btn" id="ctrl-drop" title="Space：直接硬落底">⏬ 快速落底</button>
+    </div>
+  </div>
+
+  <!-- Bottom Perspective Hint -->
+  <div class="view-hint">
+    <span>💡 视角自适应：无论如何旋转镜头，W/S/A/D 与 R/T/F 均严格匹配屏幕当前视觉朝向！</span>
+  </div>
+
+  <!-- Game Over Overlay -->
+  <div class="game-overlay" id="game-over-modal">
+    <div class="overlay-card">
+      <h2 class="overlay-title">游戏结束</h2>
+      <p class="overlay-sub">方块已堆叠至 3D 容器顶部！</p>
+      <div class="overlay-score-grid">
+        <div>
+          <div class="score-cell-title">最终得分</div>
+          <div class="score-cell-val" id="modal-score">0</div>
+        </div>
+        <div>
+          <div class="score-cell-title">消除层数</div>
+          <div class="score-cell-val" id="modal-lines">0</div>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btn-modal-restart" style="width: 100%; justify-content: center; padding: 10px;">
+        重新开始新一局
+      </button>
+    </div>
+  </div>
+
+  <!-- Game Logic Implementation -->
+  <script>
+    /**
+     * 3D 俄罗斯方块高阶体验版
+     * - 原生 Web Audio API 算法合成音效与复古 8-bit 背景音乐系统 (0外部依赖)
+     * - 视角自适应控制系统 (WASD 与 R/T/F 全向匹配屏幕当前视觉)
+     * - 下落速度调节 (0.5x ~ 2.0x 动态热生效)
+     * - 右上角 🔊 / 🔇 一键静音与声音控制
+     */
+
+    let GRID_X = 5;
+    let GRID_Y = 5;
+    const GRID_Z = 20;
+
+    // 游戏状态
+    let scene, camera, renderer, controls;
+    let containerGroup;
+    let grid = [];
+    let settledCubes = [];
+    let settledGroup, activeGroup, ghostGroup;
+    let activePiece = null;
+    let nextPieceDef = null;
+
+    // 速度与计时
+    const BASE_DROP_INTERVAL_MS = 850;
+    let currentSpeed = 1.0;
+    let currentDropInterval = BASE_DROP_INTERVAL_MS;
+    let dropTimer = null;
+    let toastTimer = null;
+
+    // 练习模式与游戏主循环
+    let isPracticeMode = false;
+    let isGameOver = false;
+    let isPaused = false;
+    let isClearingAnimation = false;
+    let placedCount = 0;
+    let score = 0;
+    let linesCleared = 0;
+
+    // 雷达画板上下文
+    let radarCanvas, radarCtx;
+
+    // “下一个方块”3D 预览场景
+    let nextScene, nextCamera, nextRenderer, nextPreviewGroup;
+
+    /**
+     * ==========================================
+     * 8-Bit Chiptune Web Audio API 音频合成引擎
+     * ==========================================
+     * 纯算法免加载合成：经典俄罗斯方块 BGM 旋律与短促街机复古音效
+     */
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    let masterGain = null;
+    let sfxGain = null;
+    let bgmGain = null;
+    let isMuted = false;
+
+    // BGM 节拍调度状态
+    let bgmTimer = null;
+    let bgmMelodyIndex = 0;
+    let bgmBassIndex = 0;
+    let nextMelodyTime = 0;
+    let nextBassTime = 0;
+    const BGM_TEMPO = 138;
+    const BEAT_DURATION = 60 / BGM_TEMPO; // ~0.435s
+
+    // 经典俄罗斯方块主题旋律 "Korobeiniki" (公有领域经典旋律)
+    // [频率 Hz, 节拍长度]
+    const BGM_MELODY = [
+      // 第一段
+      [659.25, 1],   // E5
+      [493.88, 0.5], // B4
+      [523.25, 0.5], // C5
+      [587.33, 1],   // D5
+      [523.25, 0.5], // C5
+      [493.88, 0.5], // B4
+      [440.00, 1],   // A4
+      [440.00, 0.5], // A4
+      [523.25, 0.5], // C5
+      [659.25, 1],   // E5
+      [587.33, 0.5], // D5
+      [523.25, 0.5], // C5
+      [493.88, 1.5], // B4
+      [523.25, 0.5], // C5
+      [587.33, 1],   // D5
+      [659.25, 1],   // E5
+      [523.25, 1],   // C5
+      [440.00, 1],   // A4
+      [440.00, 1.5], // A4
+      [0, 0.5],      // 停顿
+
+      // 第二段
+      [587.33, 1],   // D5
+      [698.46, 0.5], // F5
+      [880.00, 1],   // A5
+      [783.99, 0.5], // G5
+      [698.46, 0.5], // F5
+      [659.25, 1.5], // E5
+      [523.25, 0.5], // C5
+      [659.25, 1],   // E5
+      [587.33, 0.5], // D5
+      [523.25, 0.5], // C5
+      [493.88, 1],   // B4
+      [493.88, 0.5], // B4
+      [523.25, 0.5], // C5
+      [587.33, 1],   // D5
+      [659.25, 1],   // E5
+      [523.25, 1],   // C5
+      [440.00, 1],   // A4
+      [440.00, 1.5], // A4
+      [0, 0.5]       // 停顿
+    ];
+
+    // 复古 8-bit 低音和弦伴奏 (Bassline)
+    const BGM_BASS = [
+      [164.81, 1], [0, 0.5], [164.81, 0.5],
+      [220.00, 1], [0, 0.5], [220.00, 0.5],
+      [146.83, 1], [0, 0.5], [146.83, 0.5],
+      [164.81, 1], [0, 0.5], [164.81, 0.5],
+      [220.00, 1], [0, 0.5], [220.00, 0.5],
+      [164.81, 1], [0, 0.5], [164.81, 0.5],
+      [220.00, 1], [0, 0.5], [220.00, 0.5]
+    ];
+
+    // 初始化并恢复音频上下文
+    function ensureAudioContext() {
+      if (!AudioContextClass) return null;
+      if (!audioCtx) {
+        audioCtx = new AudioContextClass();
+
+        masterGain = audioCtx.createGain();
+        masterGain.gain.setValueAtTime(isMuted ? 0 : 0.75, audioCtx.currentTime);
+        masterGain.connect(audioCtx.destination);
+
+        // BGM 专有温和低通滤波器，过滤刺耳尖音，呈现正统复古 GameBoy 温暖质感
+        const bgmFilter = audioCtx.createBiquadFilter();
+        bgmFilter.type = 'lowpass';
+        bgmFilter.frequency.setValueAtTime(1350, audioCtx.currentTime);
+        bgmFilter.connect(masterGain);
+
+        bgmGain = audioCtx.createGain();
+        bgmGain.gain.setValueAtTime(0.065, audioCtx.currentTime); // 温和低音量背景音乐
+        bgmGain.connect(bgmFilter);
+
+        // SFX 游戏音效专用增益通道
+        sfxGain = audioCtx.createGain();
+        sfxGain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+        sfxGain.connect(masterGain);
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    // 单个音调合成调度
+    function playTone(freq, startTime, duration, type, outputNode, peakGain) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, startTime);
+
+      // ADSR 包络：平滑上升与快速释放防爆音
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(peakGain, startTime + 0.012);
+      gain.gain.setValueAtTime(peakGain * 0.75, startTime + duration * 0.75);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+      osc.connect(gain);
+      gain.connect(outputNode);
+
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.02);
+    }
+
+    // BGM 实时时钟调度器 (提前调度 250ms 防止卡顿漂移)
+    function scheduleBgm() {
+      if (isMuted || !audioCtx || isPaused || isGameOver) return;
+
+      const lookahead = 0.25;
+      const now = audioCtx.currentTime;
+
+      // 调度主旋律
+      while (nextMelodyTime < now + lookahead) {
+        const item = BGM_MELODY[bgmMelodyIndex];
+        const freq = item[0];
+        const beats = item[1];
+        const dur = beats * BEAT_DURATION;
+
+        if (freq > 0) {
+          playTone(freq, nextMelodyTime, dur * 0.88, 'square', bgmGain, 0.055);
+        }
+
+        nextMelodyTime += dur;
+        bgmMelodyIndex = (bgmMelodyIndex + 1) % BGM_MELODY.length;
+      }
+
+      // 调度低音伴奏
+      while (nextBassTime < now + lookahead) {
+        const item = BGM_BASS[bgmBassIndex];
+        const freq = item[0];
+        const beats = item[1];
+        const dur = beats * BEAT_DURATION;
+
+        if (freq > 0) {
+          playTone(freq, nextBassTime, dur * 0.82, 'triangle', bgmGain, 0.075);
+        }
+
+        nextBassTime += dur;
+        bgmBassIndex = (bgmBassIndex + 1) % BGM_BASS.length;
+      }
+    }
+
+    function startBgm() {
+      if (isMuted) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+
+      if (bgmTimer) clearInterval(bgmTimer);
+      const now = ctx.currentTime;
+      nextMelodyTime = now + 0.05;
+      nextBassTime = now + 0.05;
+      bgmMelodyIndex = 0;
+      bgmBassIndex = 0;
+      bgmTimer = setInterval(scheduleBgm, 50);
+    }
+
+    function stopBgm() {
+      if (bgmTimer) {
+        clearInterval(bgmTimer);
+        bgmTimer = null;
+      }
+    }
+
+    // 1. 平移短音滴答 (Blip)
+    function playMoveSound() {
+      if (isMuted) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(520, t);
+      osc.frequency.exponentialRampToValueAtTime(700, t + 0.035);
+
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+
+      osc.connect(gain);
+      gain.connect(sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.04);
+    }
+
+    // 2. 旋转清脆双音 (Rotate Tick)
+    function playRotateSound() {
+      if (isMuted) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(440, t);
+      osc.frequency.setValueAtTime(660, t + 0.025);
+      osc.frequency.setValueAtTime(880, t + 0.05);
+
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+
+      osc.connect(gain);
+      gain.connect(sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.075);
+    }
+
+    // 3. 快速硬落底音效 (Drop Swoosh)
+    function playDropSound() {
+      if (isMuted) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(540, t);
+      osc.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+
+      gain.gain.setValueAtTime(0.18, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+
+      osc.connect(gain);
+      gain.connect(sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.085);
+    }
+
+    // 4. 触底锁定低沉打击声 (Lock Thud)
+    function playLockSound() {
+      if (isMuted) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(150, t);
+      osc.frequency.exponentialRampToValueAtTime(45, t + 0.09);
+
+      gain.gain.setValueAtTime(0.24, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+
+      osc.connect(gain);
+      gain.connect(sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.095);
+    }
+
+    // 5. 满层消除华丽升调琶音 (Clear Arpeggio，连消音调递增拔高)
+    function playClearSound(lines) {
+      if (isMuted) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const t = ctx.currentTime;
+
+      let notes = [523.25, 659.25, 783.99, 1046.50]; // C5-E5-G5-C6
+      if (lines >= 2) notes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+      if (lines >= 3) notes = [523.25, 783.99, 1046.50, 1318.51, 1567.98];
+      if (lines >= 4) notes = [523.25, 659.25, 783.99, 987.77, 1046.50, 1318.51, 1567.98, 2093.00];
+
+      notes.forEach((freq, i) => {
+        const noteStart = t + i * 0.055;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(freq, noteStart);
+
+        gain.gain.setValueAtTime(0.09, noteStart);
+        gain.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.12);
+
+        osc.connect(gain);
+        gain.connect(sfxGain);
+        osc.start(noteStart);
+        osc.stop(noteStart + 0.13);
+      });
+    }
+
+    // 6. 游戏结束下行滑音 (Game Over Slide)
+    function playGameOverSound() {
+      stopBgm();
+      if (isMuted) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(360, t);
+      osc.frequency.exponentialRampToValueAtTime(65, t + 0.75);
+
+      gain.gain.setValueAtTime(0.18, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+
+      osc.connect(gain);
+      gain.connect(sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.82);
+    }
+
+    // 切换静音与音效开关
+    function toggleSound() {
+      isMuted = !isMuted;
+      const btn = document.getElementById('btn-sound');
+      if (isMuted) {
+        btn.innerHTML = '🔇 声音: 关';
+        btn.classList.add('muted');
+        if (masterGain && audioCtx) {
+          masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+        }
+        stopBgm();
+        showClearToast('🔇 音效与背景音乐已静音');
+      } else {
+        btn.innerHTML = '🔊 声音: 开';
+        btn.classList.remove('muted');
+        ensureAudioContext();
+        if (masterGain && audioCtx) {
+          masterGain.gain.setValueAtTime(0.75, audioCtx.currentTime);
+        }
+        if (!isPaused && !isGameOver) {
+          startBgm();
+        }
+        showClearToast('🔊 音效与背景音乐已开启');
+      }
+    }
+
+    // 首次交互自动唤醒音频上下文 (符合现代浏览器安全策略)
+    let hasUserInteracted = false;
+    function onFirstUserGesture() {
+      if (hasUserInteracted) return;
+      hasUserInteracted = true;
+      if (!isMuted) {
+        ensureAudioContext();
+        if (!isPaused && !isGameOver) {
+          startBgm();
+        }
+      }
+    }
+    ['click', 'keydown', 'touchstart'].forEach(evt => {
+      window.addEventListener(evt, onFirstUserGesture, { once: true, passive: true });
+    });
+
+    // 7 种经典俄罗斯方块定义 (厚度统一为 1)
+    const CLASSIC_TETROMINOES = [
+      {
+        name: "I 块 (长条)",
+        desc: "青色 · 4×1×1",
+        color: 0x06b6d4,
+        cells: [
+          { x: 0, y: 0, z: 0 },
+          { x: 1, y: 0, z: 0 },
+          { x: 2, y: 0, z: 0 },
+          { x: 3, y: 0, z: 0 }
+        ]
+      },
+      {
+        name: "O 块 (方块)",
+        desc: "金黄 · 2×2×1",
+        color: 0xeab308,
+        cells: [
+          { x: 0, y: 0, z: 0 },
+          { x: 1, y: 0, z: 0 },
+          { x: 0, y: 1, z: 0 },
+          { x: 1, y: 1, z: 0 }
+        ]
+      },
+      {
+        name: "T 块",
+        desc: "亮紫 · 3×1×1",
+        color: 0xa855f7,
+        cells: [
+          { x: 0, y: 0, z: 0 },
+          { x: 1, y: 0, z: 0 },
+          { x: 2, y: 0, z: 0 },
+          { x: 1, y: 1, z: 0 }
+        ]
+      },
+      {
+        name: "L 块",
+        desc: "橙色 · 3×1×1",
+        color: 0xf97316,
+        cells: [
+          { x: 0, y: 0, z: 0 },
+          { x: 1, y: 0, z: 0 },
+          { x: 2, y: 0, z: 0 },
+          { x: 2, y: 1, z: 0 }
+        ]
+      },
+      {
+        name: "J 块",
+        desc: "蓝色 · 3×1×1",
+        color: 0x3b82f6,
+        cells: [
+          { x: 0, y: 0, z: 0 },
+          { x: 1, y: 0, z: 0 },
+          { x: 2, y: 0, z: 0 },
+          { x: 0, y: 1, z: 0 }
+        ]
+      },
+      {
+        name: "S 块",
+        desc: "翡翠绿 · 阶梯形",
+        color: 0x22c55e,
+        cells: [
+          { x: 1, y: 0, z: 0 },
+          { x: 2, y: 0, z: 0 },
+          { x: 0, y: 1, z: 0 },
+          { x: 1, y: 1, z: 0 }
+        ]
+      },
+      {
+        name: "Z 块",
+        desc: "艳红 · 阶梯形",
+        color: 0xef4444,
+        cells: [
+          { x: 0, y: 0, z: 0 },
+          { x: 1, y: 0, z: 0 },
+          { x: 1, y: 1, z: 0 },
+          { x: 2, y: 1, z: 0 }
+        ]
+      }
+    ];
+
+    // 初始化 3D 网格状态
+    function initGrid() {
+      grid = [];
+      for (let x = 0; x < GRID_X; x++) {
+        grid[x] = [];
+        for (let y = 0; y < GRID_Y; y++) {
+          grid[x][y] = [];
+          for (let z = 0; z < GRID_Z; z++) {
+            grid[x][y][z] = false;
+          }
+        }
+      }
+      settledCubes = [];
+    }
+
+    // 确保 CDN Three.js 与 OrbitControls 加载
+    function ensureThreeJsLoaded() {
+      return new Promise((resolve, reject) => {
+        if (typeof THREE !== 'undefined' && THREE.OrbitControls) {
+          return resolve();
+        }
+
+        const loadScript = (src) => {
+          return new Promise((res, rej) => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = res;
+            s.onerror = rej;
+            document.head.appendChild(s);
+          });
+        };
+
+        const loadOrbit = () => {
+          if (THREE.OrbitControls) return Promise.resolve();
+          return loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js');
+        };
+
+        if (typeof THREE === 'undefined') {
+          loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')
+            .then(loadOrbit)
+            .then(resolve)
+            .catch(reject);
+        } else {
+          loadOrbit().then(resolve).catch(reject);
+        }
+      });
+    }
+
+    // 初始化主 3D 场景
+    function initScene() {
+      const container = document.getElementById('canvas-container');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x080c14);
+      scene.fog = new THREE.FogExp2(0x080c14, 0.015);
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.up.set(0, 0, 1);
+      updateCameraForGridSize();
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+      controls.maxDistance = 80;
+      controls.minDistance = 8;
+      controls.maxPolarAngle = Math.PI / 2 + 0.12;
+      updateControlsTarget();
+
+      // 灯光
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+
+      const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+      keyLight.position.set(GRID_X * 2, -GRID_Y * 2, GRID_Z * 1.5);
+      keyLight.castShadow = true;
+      scene.add(keyLight);
+
+      const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.45);
+      fillLight.position.set(-GRID_X * 2, GRID_Y * 2, GRID_Z);
+      scene.add(fillLight);
+
+      const rimLight = new THREE.DirectionalLight(0xa855f7, 0.35);
+      rimLight.position.set(GRID_X / 2, GRID_Y * 2, -GRID_Z / 2);
+      scene.add(rimLight);
+
+      // 管理组
+      containerGroup = new THREE.Group();
+      settledGroup = new THREE.Group();
+      activeGroup = new THREE.Group();
+      ghostGroup = new THREE.Group();
+      scene.add(containerGroup);
+      scene.add(settledGroup);
+      scene.add(activeGroup);
+      scene.add(ghostGroup);
+
+      buildContainer();
+
+      // 雷达 Canvas 初始化
+      radarCanvas = document.getElementById('radar-canvas');
+      radarCtx = radarCanvas.getContext('2d');
+
+      // 初始化左侧面板里的“下一个方块”3D 旋转预览
+      initNextPieceScene();
+
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    // 根据底面尺寸动态调整相机与控制器目标
+    function updateCameraForGridSize() {
+      if (!camera) return;
+      const dist = GRID_X * 2.8 + 6;
+      camera.position.set(-dist * 0.82, -dist * 0.42, GRID_Z * 1.05 + dist * 0.2);
+    }
+
+    function updateControlsTarget() {
+      if (!controls) return;
+      controls.target.set(GRID_X / 2, GRID_Y / 2, GRID_Z / 2 - 1.5);
+      controls.update();
+    }
+
+    // 构建透明外框、底面网格与地板
+    function buildContainer() {
+      while (containerGroup.children.length > 0) {
+        containerGroup.remove(containerGroup.children[0]);
+      }
+
+      // 地面网格
+      const floorGrid = new THREE.GridHelper(GRID_X, GRID_X, 0x00f0ff, 0x1e293b);
+      floorGrid.rotation.x = Math.PI / 2;
+      floorGrid.position.set(GRID_X / 2, GRID_Y / 2, 0.001);
+      containerGroup.add(floorGrid);
+
+      // 地板底板
+      const floorPlaneGeo = new THREE.PlaneGeometry(GRID_X, GRID_Y);
+      const floorPlaneMat = new THREE.MeshStandardMaterial({
+        color: 0x0a101f,
+        roughness: 0.85,
+        metalness: 0.2
+      });
+      const floorPlane = new THREE.Mesh(floorPlaneGeo, floorPlaneMat);
+      floorPlane.position.set(GRID_X / 2, GRID_Y / 2, -0.01);
+      floorPlane.receiveShadow = true;
+      containerGroup.add(floorPlane);
+
+      // 外边界框架线
+      const boxGeo = new THREE.BoxGeometry(GRID_X, GRID_Y, GRID_Z);
+      const edges = new THREE.EdgesGeometry(boxGeo);
+      const lineMat = new THREE.LineBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.35
+      });
+      const wireframeBox = new THREE.LineSegments(edges, lineMat);
+      wireframeBox.position.set(GRID_X / 2, GRID_Y / 2, GRID_Z / 2);
+      containerGroup.add(wireframeBox);
+
+      // 半透明内壁
+      const boxMat = new THREE.MeshBasicMaterial({
+        color: 0x0284c7,
+        transparent: true,
+        opacity: 0.035,
+        side: THREE.BackSide,
+        depthWrite: false
+      });
+      const glassBox = new THREE.Mesh(boxGeo, boxMat);
+      glassBox.position.set(GRID_X / 2, GRID_Y / 2, GRID_Z / 2);
+      containerGroup.add(glassBox);
+
+      // 顶部进场警戒线
+      const topEdgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(GRID_X, GRID_Y, 0.08));
+      const topEdgesMat = new THREE.LineBasicMaterial({
+        color: 0xef4444,
+        transparent: true,
+        opacity: 0.45
+      });
+      const topWarning = new THREE.LineSegments(topEdgesGeo, topEdgesMat);
+      topWarning.position.set(GRID_X / 2, GRID_Y / 2, GRID_Z);
+      containerGroup.add(topWarning);
+    }
+
+    // 初始化左侧卡片内的“下一个方块”3D 旋转预览
+    function initNextPieceScene() {
+      const container = document.getElementById('next-3d-container');
+      const w = container.clientWidth || 208;
+      const h = container.clientHeight || 68;
+
+      nextScene = new THREE.Scene();
+      nextCamera = new THREE.PerspectiveCamera(40, w / h, 0.1, 100);
+      nextCamera.position.set(0, 0, 7.2);
+
+      nextRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      nextRenderer.setSize(w, h);
+      nextRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      container.appendChild(nextRenderer.domElement);
+
+      const amb = new THREE.AmbientLight(0xffffff, 0.85);
+      nextScene.add(amb);
+      const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+      dir.position.set(4, 5, 6);
+      nextScene.add(dir);
+
+      nextPreviewGroup = new THREE.Group();
+      nextScene.add(nextPreviewGroup);
+    }
+
+    // 更新“下一个方块”3D 预览内容
+    function updateNextPiecePreview(def) {
+      if (!nextPreviewGroup) return;
+
+      while (nextPreviewGroup.children.length > 0) {
+        nextPreviewGroup.remove(nextPreviewGroup.children[0]);
+      }
+
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      def.cells.forEach(c => {
+        minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x);
+        minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y);
+      });
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+
+      def.cells.forEach(c => {
+        const geo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+        const mat = new THREE.MeshStandardMaterial({
+          color: def.color,
+          roughness: 0.25,
+          metalness: 0.25,
+          emissive: def.color,
+          emissiveIntensity: 0.12
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(c.x - cx, c.y - cy, 0);
+
+        const edges = new THREE.LineSegments(
+          new THREE.EdgesGeometry(geo),
+          new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.45, transparent: true })
+        );
+        mesh.add(edges);
+        nextPreviewGroup.add(mesh);
+      });
+
+      document.getElementById('next-piece-label').innerText = `${def.name} · ${def.desc.split('·')[0].trim()}`;
+    }
+
+    // 创建单元立方体网格
+    function createCubeMesh(color, isGhost = false) {
+      const size = 0.94;
+      const geometry = new THREE.BoxGeometry(size, size, size);
+
+      if (isGhost) {
+        const ghostMat = new THREE.MeshBasicMaterial({
+          color: color,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.25
+        });
+        return new THREE.Mesh(geometry, ghostMat);
+      }
+
+      const material = new THREE.MeshStandardMaterial({
+        color: color,
+        roughness: 0.25,
+        metalness: 0.25,
+        emissive: color,
+        emissiveIntensity: 0.08
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      const edgeGeo = new THREE.EdgesGeometry(geometry);
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.35
+      });
+      const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+      mesh.add(edgeLines);
+
+      return mesh;
+    }
+
+    function getRandomPieceDef() {
+      return CLASSIC_TETROMINOES[Math.floor(Math.random() * CLASSIC_TETROMINOES.length)];
+    }
+
+    // 生成新方块
+    function spawnNewPiece() {
+      if (!nextPieceDef) {
+        nextPieceDef = getRandomPieceDef();
+      }
+
+      const def = nextPieceDef;
+      nextPieceDef = getRandomPieceDef();
+      updateNextPiecePreview(nextPieceDef);
+
+      let startX = Math.floor(GRID_X / 2) - 1;
+      let startY = Math.floor(GRID_Y / 2) - 1;
+      let startZ = GRID_Z - 2;
+
+      const cells = def.cells.map(c => ({ ...c }));
+
+      activePiece = {
+        name: def.name,
+        desc: def.desc,
+        color: def.color,
+        cells: cells,
+        x: startX,
+        y: startY,
+        z: startZ
+      };
+
+      if (!isValidPosition(activePiece.cells, activePiece.x, activePiece.y, activePiece.z)) {
+        triggerGameOver();
+        return;
+      }
+
+      renderActivePiece();
+      updateGhostPiece();
+    }
+
+    // 碰撞与边界检测
+    function isValidPosition(cells, px, py, pz) {
+      for (let i = 0; i < cells.length; i++) {
+        const x = px + cells[i].x;
+        const y = py + cells[i].y;
+        const z = pz + cells[i].z;
+
+        if (x < 0 || x >= GRID_X || y < 0 || y >= GRID_Y) {
+          return false;
+        }
+
+        if (z < 0) {
+          return false;
+        }
+
+        if (z >= GRID_Z) {
+          continue;
+        }
+
+        if (grid[x] && grid[x][y] && grid[x][y][z]) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // 渲染活动方块
+    function renderActivePiece() {
+      while (activeGroup.children.length > 0) {
+        activeGroup.remove(activeGroup.children[0]);
+      }
+
+      if (!activePiece) return;
+
+      activePiece.cells.forEach(c => {
+        const mesh = createCubeMesh(activePiece.color);
+        mesh.position.set(
+          activePiece.x + c.x + 0.5,
+          activePiece.y + c.y + 0.5,
+          activePiece.z + c.z + 0.5
+        );
+        activeGroup.add(mesh);
+      });
+    }
+
+    // 落地阴影预览
+    function updateGhostPiece() {
+      while (ghostGroup.children.length > 0) {
+        ghostGroup.remove(ghostGroup.children[0]);
+      }
+
+      if (!activePiece) return;
+
+      let ghostZ = activePiece.z;
+      while (isValidPosition(activePiece.cells, activePiece.x, activePiece.y, ghostZ - 1)) {
+        ghostZ--;
+      }
+
+      if (ghostZ === activePiece.z) return;
+
+      activePiece.cells.forEach(c => {
+        const ghostMesh = createCubeMesh(activePiece.color, true);
+        ghostMesh.position.set(
+          activePiece.x + c.x + 0.5,
+          activePiece.y + c.y + 0.5,
+          ghostZ + c.z + 0.5
+        );
+        ghostGroup.add(ghostMesh);
+      });
+    }
+
+    /**
+     * 视角自适应控制系统 (Camera-Relative)
+     */
+    function getCameraQuadrant() {
+      if (!camera || !controls) return 0;
+      const fX = controls.target.x - camera.position.x;
+      const fY = controls.target.y - camera.position.y;
+      const angle = Math.atan2(fY, fX);
+
+      if (angle >= -Math.PI / 4 && angle < Math.PI / 4) {
+        return 0; // +X (0°)
+      } else if (angle >= Math.PI / 4 && angle < 3 * Math.PI / 4) {
+        return 1; // +Y (90°)
+      } else if (angle >= -3 * Math.PI / 4 && angle < -Math.PI / 4) {
+        return 3; // -Y (270° / -90°)
+      } else {
+        return 2; // -X (180°)
+      }
+    }
+
+    // 视角自适应平移
+    function movePieceViewRelative(action) {
+      if (!activePiece || isGameOver || isPaused || isClearingAnimation) return false;
+
+      const q = getCameraQuadrant();
+      let dx = 0, dy = 0;
+
+      if (action === 'forward') {
+        if (q === 0) dx = 1;
+        else if (q === 1) dy = 1;
+        else if (q === 2) dx = -1;
+        else if (q === 3) dy = -1;
+      } else if (action === 'backward') {
+        if (q === 0) dx = -1;
+        else if (q === 1) dy = -1;
+        else if (q === 2) dx = 1;
+        else if (q === 3) dy = 1;
+      } else if (action === 'left') {
+        if (q === 0) dy = 1;
+        else if (q === 1) dx = -1;
+        else if (q === 2) dy = -1;
+        else if (q === 3) dx = 1;
+      } else if (action === 'right') {
+        if (q === 0) dy = -1;
+        else if (q === 1) dx = 1;
+        else if (q === 2) dy = 1;
+        else if (q === 3) dx = -1;
+      }
+
+      if (isValidPosition(activePiece.cells, activePiece.x + dx, activePiece.y + dy, activePiece.z)) {
+        activePiece.x += dx;
+        activePiece.y += dy;
+        renderActivePiece();
+        updateGhostPiece();
+        playMoveSound();
+        return true;
+      }
+      return false;
+    }
+
+    // 基础三维坐标移动 (用于向下落)
+    function movePieceDirect(dx, dy, dz) {
+      if (!activePiece || isGameOver || isPaused || isClearingAnimation) return false;
+      if (isValidPosition(activePiece.cells, activePiece.x + dx, activePiece.y + dy, activePiece.z + dz)) {
+        activePiece.x += dx;
+        activePiece.y += dy;
+        activePiece.z += dz;
+        renderActivePiece();
+        updateGhostPiece();
+        return true;
+      }
+      return false;
+    }
+
+    // 视角自适应三轴 90° 旋转
+    function rotatePieceViewRelative(rotType) {
+      if (!activePiece || isGameOver || isPaused || isClearingAnimation) return;
+
+      const q = getCameraQuadrant();
+
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      let minZ = Infinity, maxZ = -Infinity;
+
+      activePiece.cells.forEach(c => {
+        minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x);
+        minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y);
+        minZ = Math.min(minZ, c.z); maxZ = Math.max(maxZ, c.z);
+      });
+
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const cz = (minZ + maxZ) / 2;
+
+      const newCells = activePiece.cells.map(c => {
+        const rx = c.x - cx;
+        const ry = c.y - cy;
+        const rz = c.z - cz;
+        let nx = rx, ny = ry, nz = rz;
+
+        if (rotType === 'yaw') {
+          nx = -ry; ny = rx; nz = rz;
+        } else if (rotType === 'pitch') {
+          if (q === 0) { nx = rz; ny = ry; nz = -rx; }
+          else if (q === 1) { nx = rx; ny = rz; nz = -ry; }
+          else if (q === 2) { nx = -rz; ny = ry; nz = rx; }
+          else if (q === 3) { nx = rx; ny = -rz; nz = ry; }
+        } else if (rotType === 'roll') {
+          if (q === 0) { nx = rx; ny = -rz; nz = ry; }
+          else if (q === 1) { nx = rz; ny = ry; nz = -rx; }
+          else if (q === 2) { nx = rx; ny = rz; nz = -ry; }
+          else if (q === 3) { nx = -rz; ny = ry; nz = rx; }
+        }
+
+        return {
+          x: Math.round(cx + nx),
+          y: Math.round(cy + ny),
+          z: Math.round(cz + nz)
+        };
+      });
+
+      let nMinX = Math.min(...newCells.map(c => c.x));
+      let nMinY = Math.min(...newCells.map(c => c.y));
+      let nMinZ = Math.min(...newCells.map(c => c.z));
+      const normalizedCells = newCells.map(c => ({
+        x: c.x - nMinX,
+        y: c.y - nMinY,
+        z: c.z - nMinZ
+      }));
+
+      const kickOffsets = [
+        { x: 0, y: 0, z: 0 },
+        { x: 0, y: 1, z: 0 },
+        { x: 0, y: -1, z: 0 },
+        { x: 1, y: 0, z: 0 },
+        { x: -1, y: 0, z: 0 },
+        { x: 0, y: 0, z: 1 },
+        { x: 0, y: 0, z: -1 },
+        { x: 1, y: 1, z: 0 },
+        { x: -1, y: -1, z: 0 }
+      ];
+
+      for (let i = 0; i < kickOffsets.length; i++) {
+        const off = kickOffsets[i];
+        if (isValidPosition(normalizedCells, activePiece.x + off.x, activePiece.y + off.y, activePiece.z + off.z)) {
+          activePiece.cells = normalizedCells;
+          activePiece.x += off.x;
+          activePiece.y += off.y;
+          activePiece.z += off.z;
+          renderActivePiece();
+          updateGhostPiece();
+          playRotateSound();
+          return;
+        }
+      }
+    }
+
+    // 快速硬落底 (Space 键)
+    function dropToBottom() {
+      if (!activePiece || isGameOver || isPaused || isClearingAnimation) return;
+      playDropSound();
+      while (movePieceDirect(0, 0, -1)) {}
+      lockActivePiece();
+    }
+
+    // 单步向下移动一格
+    function stepDown() {
+      if (!activePiece || isGameOver || isPaused || isClearingAnimation) return;
+      const moved = movePieceDirect(0, 0, -1);
+      if (moved) {
+        playMoveSound();
+      } else {
+        lockActivePiece();
+      }
+    }
+
+    // 方块固定入网格 & 触发满层消除检测
+    function lockActivePiece() {
+      if (!activePiece) return;
+
+      activePiece.cells.forEach(c => {
+        const gx = activePiece.x + c.x;
+        const gy = activePiece.y + c.y;
+        const gz = activePiece.z + c.z;
+
+        if (gx >= 0 && gx < GRID_X && gy >= 0 && gy < GRID_Y && gz >= 0 && gz < GRID_Z) {
+          grid[gx][gy][gz] = true;
+
+          const cubeMesh = createCubeMesh(activePiece.color);
+          cubeMesh.position.set(gx + 0.5, gy + 0.5, gz + 0.5);
+          settledGroup.add(cubeMesh);
+
+          settledCubes.push({
+            x: gx,
+            y: gy,
+            z: gz,
+            mesh: cubeMesh,
+            color: activePiece.color
+          });
+        }
+      });
+
+      placedCount++;
+      document.getElementById('hud-placed').innerText = placedCount;
+
+      while (activeGroup.children.length > 0) activeGroup.remove(activeGroup.children[0]);
+      while (ghostGroup.children.length > 0) ghostGroup.remove(ghostGroup.children[0]);
+      activePiece = null;
+
+      playLockSound();
+      checkAndClearFullLayers();
+    }
+
+    // 满层消除检测与分数动画
+    function checkAndClearFullLayers() {
+      const fullLayers = [];
+
+      for (let z = 0; z < GRID_Z; z++) {
+        let isFull = true;
+        for (let x = 0; x < GRID_X; x++) {
+          for (let y = 0; y < GRID_Y; y++) {
+            if (!grid[x][y][z]) {
+              isFull = false;
+              break;
+            }
+          }
+          if (!isFull) break;
+        }
+        if (isFull) {
+          fullLayers.push(z);
+        }
+      }
+
+      if (fullLayers.length > 0) {
+        isClearingAnimation = true;
+
+        fullLayers.forEach(z => {
+          settledCubes.forEach(cube => {
+            if (cube.z === z) {
+              cube.mesh.material.emissive.setHex(0xffffff);
+              cube.mesh.material.emissiveIntensity = 1.0;
+            }
+          });
+        });
+
+        const scoreMultipliers = [0, 100, 300, 600, 1200];
+        const addedScore = scoreMultipliers[Math.min(fullLayers.length, 4)] || (fullLayers.length * 300);
+        score += addedScore;
+        linesCleared += fullLayers.length;
+
+        document.getElementById('hud-score').innerText = score;
+        document.getElementById('hud-lines').innerText = linesCleared;
+
+        playClearSound(fullLayers.length);
+        showClearToast(`🎉 消除 ${fullLayers.length} 层! +${addedScore} 分`);
+
+        setTimeout(() => {
+          const remainingCubes = [];
+          settledCubes.forEach(cube => {
+            if (fullLayers.includes(cube.z)) {
+              settledGroup.remove(cube.mesh);
+            } else {
+              remainingCubes.push(cube);
+            }
+          });
+
+          remainingCubes.forEach(cube => {
+            const dropAmount = fullLayers.filter(lz => lz < cube.z).length;
+            if (dropAmount > 0) {
+              cube.z -= dropAmount;
+              cube.mesh.position.z = cube.z + 0.5;
+            }
+          });
+
+          settledCubes = remainingCubes;
+
+          for (let x = 0; x < GRID_X; x++) {
+            for (let y = 0; y < GRID_Y; y++) {
+              for (let z = 0; z < GRID_Z; z++) {
+                grid[x][y][z] = false;
+              }
+            }
+          }
+          settledCubes.forEach(cube => {
+            if (cube.x >= 0 && cube.x < GRID_X && cube.y >= 0 && cube.y < GRID_Y && cube.z >= 0 && cube.z < GRID_Z) {
+              grid[cube.x][cube.y][cube.z] = true;
+            }
+          });
+
+          updateHeightHUD();
+          isClearingAnimation = false;
+
+          if (!isGameOver && !isPaused) {
+            spawnNewPiece();
+          }
+        }, 280);
+      } else {
+        updateHeightHUD();
+        setTimeout(() => {
+          if (!isGameOver && !isPaused) {
+            spawnNewPiece();
+          }
+        }, 80);
+      }
+    }
+
+    function updateHeightHUD() {
+      let maxHeight = 0;
+      for (let z = 0; z < GRID_Z; z++) {
+        for (let x = 0; x < GRID_X; x++) {
+          for (let y = 0; y < GRID_Y; y++) {
+            if (grid[x][y][z]) {
+              maxHeight = Math.max(maxHeight, z + 1);
+            }
+          }
+        }
+      }
+      document.getElementById('hud-height').innerText = `${maxHeight}/${GRID_Z}`;
+    }
+
+    function showClearToast(text) {
+      const toast = document.getElementById('clear-toast');
+      document.getElementById('clear-toast-text').innerText = text;
+      toast.classList.add('show');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 1500);
+    }
+
+    // 绘制右上角动态联动俯视雷达 (Top-down Radar)
+    function drawRadarMinimap() {
+      if (!radarCtx || !camera || !controls) return;
+
+      const w = radarCanvas.width;
+      const h = radarCanvas.height;
+      const cx = w / 2;
+      const cy = h / 2;
+
+      radarCtx.clearRect(0, 0, w, h);
+
+      // 计算相机在水平平面 (XY) 上的视线向量 (从相机指向目标 controls.target)
+      const fX = controls.target.x - camera.position.x;
+      const fY = controls.target.y - camera.position.y;
+      const len = Math.sqrt(fX * fX + fY * fY) || 1;
+      // 水平视线正向单位向量 (在屏幕上朝上，严格对应雷达顶部箭头 ▲，即 W 键视线深处方向)
+      const fx = fX / len;
+      const fy = fY / len;
+
+      // 屏幕右侧单位向量 (在屏幕上朝右，对应雷达右侧，即 D 键方向)
+      // 3D 空间坐标系中 Up 为 +Z，Forward × Up = (fy, -fx, 0) 为屏幕右侧
+      const rx = fy;
+      const ry = -fx;
+
+      // 动态自适应缩放：确保 5x5, 7x7, 9x9 网格在 136px 圆形表盘中完整显示且留出四周方位刻度空间
+      const targetDiagonal = 84;
+      const scale = targetDiagonal / (GRID_X * Math.SQRT2);
+
+      // 3D 世界水平坐标 (wx, wy) 映射到雷达 Canvas 坐标 (sx, sy)
+      function projectToRadar(wx, wy) {
+        const ox = wx - GRID_X / 2;
+        const oy = wy - GRID_Y / 2;
+        // 投影到屏幕右侧轴与屏幕正前轴
+        const distRight = ox * rx + oy * ry;
+        const distForward = ox * fx + oy * fy;
+        return {
+          x: cx + distRight * scale,
+          // 减号：屏幕前向 (W 键/视线深处) 对应 Canvas 上方 (y 坐标递减向顶端 ▲ 对齐)
+          y: cy - distForward * scale
+        };
+      }
+
+      // 获取当前下落中方块在水平面的投影脚印 (Active Piece Footprint)
+      const activeFootprint = new Set();
+      if (activePiece) {
+        activePiece.cells.forEach(c => {
+          const gx = activePiece.x + c.x;
+          const gy = activePiece.y + c.y;
+          if (gx >= 0 && gx < GRID_X && gy >= 0 && gy < GRID_Y) {
+            activeFootprint.add(`${gx},${gy}`);
+          }
+        });
+      }
+
+      // 1. 绘制每个网格单元格 (以多边形精确渲染旋转后的正方形)
+      for (let gx = 0; gx < GRID_X; gx++) {
+        for (let gy = 0; gy < GRID_Y; gy++) {
+          const p0 = projectToRadar(gx, gy);
+          const p1 = projectToRadar(gx + 1, gy);
+          const p2 = projectToRadar(gx + 1, gy + 1);
+          const p3 = projectToRadar(gx, gy + 1);
+
+          let topHeight = 0;
+          for (let z = GRID_Z - 1; z >= 0; z--) {
+            if (grid[gx][gy][z]) {
+              topHeight = z + 1;
+              break;
+            }
+          }
+
+          const isActive = activeFootprint.has(`${gx},${gy}`);
+
+          radarCtx.beginPath();
+          radarCtx.moveTo(p0.x, p0.y);
+          radarCtx.lineTo(p1.x, p1.y);
+          radarCtx.lineTo(p2.x, p2.y);
+          radarCtx.lineTo(p3.x, p3.y);
+          radarCtx.closePath();
+
+          if (isActive) {
+            // 当前下落方块投影高亮（金色半透明填充）
+            radarCtx.fillStyle = 'rgba(245, 158, 11, 0.42)';
+          } else if (topHeight > 0) {
+            const intensity = Math.min(topHeight / GRID_Z, 1);
+            radarCtx.fillStyle = `rgba(14, 165, 233, ${0.30 + intensity * 0.58})`;
+          } else {
+            radarCtx.fillStyle = 'rgba(30, 41, 59, 0.45)';
+          }
+          radarCtx.fill();
+
+          if (isActive) {
+            radarCtx.strokeStyle = '#fbbf24';
+            radarCtx.lineWidth = 1.6;
+          } else {
+            radarCtx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+            radarCtx.lineWidth = 0.8;
+          }
+          radarCtx.stroke();
+        }
+      }
+
+      // 2. 绘制整个容器底面的外边框
+      const b0 = projectToRadar(0, 0);
+      const b1 = projectToRadar(GRID_X, 0);
+      const b2 = projectToRadar(GRID_X, GRID_Y);
+      const b3 = projectToRadar(0, GRID_Y);
+
+      radarCtx.beginPath();
+      radarCtx.moveTo(b0.x, b0.y);
+      radarCtx.lineTo(b1.x, b1.y);
+      radarCtx.lineTo(b2.x, b2.y);
+      radarCtx.lineTo(b3.x, b3.y);
+      radarCtx.closePath();
+      radarCtx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+      radarCtx.lineWidth = 1.5;
+      radarCtx.stroke();
+
+      // 3. 绘制格子内高度数字（保证始终水平正向朝上，绝不随镜头旋转颠倒）
+      const fontSize = Math.max(7, Math.floor(scale * 0.72));
+      radarCtx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
+      radarCtx.textAlign = 'center';
+      radarCtx.textBaseline = 'middle';
+
+      for (let gx = 0; gx < GRID_X; gx++) {
+        for (let gy = 0; gy < GRID_Y; gy++) {
+          let topHeight = 0;
+          for (let z = GRID_Z - 1; z >= 0; z--) {
+            if (grid[gx][gy][z]) {
+              topHeight = z + 1;
+              break;
+            }
+          }
+
+          const isActive = activeFootprint.has(`${gx},${gy}`);
+          const center = projectToRadar(gx + 0.5, gy + 0.5);
+
+          if (topHeight > 0) {
+            radarCtx.fillStyle = isActive ? '#fef08a' : '#ffffff';
+            radarCtx.fillText(topHeight.toString(), center.x, center.y);
+          } else if (isActive) {
+            // 当前下落方块若在尚未堆叠的空列上方，显示精巧落点标记
+            radarCtx.fillStyle = '#f59e0b';
+            radarCtx.beginPath();
+            radarCtx.arc(center.x, center.y, 2.2, 0, Math.PI * 2);
+            radarCtx.fill();
+          }
+        }
+      }
+
+      // 4. 雷达正前方视线箭头 ▲ (指向屏幕正深处 W 键方向) 与方位刻度文字
+      radarCtx.fillStyle = '#38bdf8';
+      radarCtx.beginPath();
+      radarCtx.moveTo(cx, 4);
+      radarCtx.lineTo(cx - 5, 12);
+      radarCtx.lineTo(cx + 5, 12);
+      radarCtx.closePath();
+      radarCtx.fill();
+
+      // 顶部刻度标签 "前"
+      radarCtx.font = 'bold 8px "Plus Jakarta Sans", sans-serif';
+      radarCtx.fillStyle = '#94a3b8';
+      radarCtx.textAlign = 'center';
+      radarCtx.textBaseline = 'top';
+      radarCtx.fillText('前', cx, 14);
+
+      // 底部刻度标签 "后"
+      radarCtx.textBaseline = 'bottom';
+      radarCtx.fillText('后', cx, h - 3);
+
+      // 左侧刻度标签 "左"
+      radarCtx.textBaseline = 'middle';
+      radarCtx.textAlign = 'left';
+      radarCtx.fillText('左', 3, cy);
+
+      // 右侧刻度标签 "右"
+      radarCtx.textAlign = 'right';
+      radarCtx.fillText('右', w - 3, cy);
+    }
+
+    // 练习模式切换
+    function togglePracticeMode() {
+      isPracticeMode = !isPracticeMode;
+      const btn = document.getElementById('btn-practice');
+      const speedWrapper = document.getElementById('speed-wrapper');
+      const speedSelect = document.getElementById('speed-select');
+
+      if (isPracticeMode) {
+        btn.innerText = '练习模式: 开';
+        btn.classList.add('active');
+        speedWrapper.classList.add('disabled');
+        speedSelect.disabled = true;
+        if (dropTimer) {
+          clearInterval(dropTimer);
+          dropTimer = null;
+        }
+        showClearToast('🎯 练习模式已开启：方块停止自动下落');
+      } else {
+        btn.innerText = '练习模式: 关';
+        btn.classList.remove('active');
+        speedWrapper.classList.remove('disabled');
+        speedSelect.disabled = false;
+        startDropTimer();
+        showClearToast('⚡ 练习模式已关闭：恢复自动下落');
+      }
+    }
+
+    // 切换底面尺寸 (5×5 / 7×7 / 9×9)
+    function switchGridSize(newSize) {
+      if (GRID_X === newSize) return;
+
+      GRID_X = newSize;
+      GRID_Y = newSize;
+
+      document.querySelectorAll('.size-btn').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.size) === newSize);
+      });
+
+      buildContainer();
+      updateCameraForGridSize();
+      updateControlsTarget();
+
+      showClearToast(`📐 底面尺寸已切换为 ${newSize}×${newSize}`);
+      restartGame();
+    }
+
+    // 主时钟自动下落
+    function tick() {
+      if (isGameOver || isPaused || isClearingAnimation || isPracticeMode) return;
+
+      if (activePiece) {
+        const moved = movePieceDirect(0, 0, -1);
+        if (!moved) {
+          lockActivePiece();
+        }
+      }
+    }
+
+    function startDropTimer() {
+      if (dropTimer) clearInterval(dropTimer);
+      if (isPracticeMode) return;
+      dropTimer = setInterval(tick, currentDropInterval);
+    }
+
+    // 触发游戏结束
+    function triggerGameOver() {
+      isGameOver = true;
+      if (dropTimer) clearInterval(dropTimer);
+      playGameOverSound();
+      document.getElementById('modal-score').innerText = score;
+      document.getElementById('modal-lines').innerText = linesCleared;
+      document.getElementById('game-over-modal').style.display = 'flex';
+    }
+
+    // 重新开始游戏
+    function restartGame() {
+      isGameOver = false;
+      isPaused = false;
+      isClearingAnimation = false;
+      placedCount = 0;
+      score = 0;
+      linesCleared = 0;
+
+      document.getElementById('hud-score').innerText = '0';
+      document.getElementById('hud-lines').innerText = '0';
+      document.getElementById('hud-placed').innerText = '0';
+      document.getElementById('hud-height').innerText = `0/${GRID_Z}`;
+      document.getElementById('btn-pause').innerText = '暂停';
+      document.getElementById('game-over-modal').style.display = 'none';
+
+      while (settledGroup.children.length > 0) settledGroup.remove(settledGroup.children[0]);
+      while (activeGroup.children.length > 0) activeGroup.remove(activeGroup.children[0]);
+      while (ghostGroup.children.length > 0) ghostGroup.remove(ghostGroup.children[0]);
+
+      initGrid();
+      nextPieceDef = null;
+      spawnNewPiece();
+      startDropTimer();
+
+      if (!isMuted) {
+        startBgm();
+      }
+    }
+
+    // 暂停/继续
+    function togglePause() {
+      if (isGameOver) return;
+      isPaused = !isPaused;
+      document.getElementById('btn-pause').innerText = isPaused ? '继续' : '暂停';
+      if (isPaused) {
+        stopBgm();
+      } else if (!isMuted) {
+        startBgm();
+      }
+    }
+
+    // 键盘事件监听 (视角自适应，所见即所得)
+    function setupKeyboardControls() {
+      window.addEventListener('keydown', (e) => {
+        if (isGameOver) return;
+
+        switch (e.key) {
+          case 'w':
+          case 'W':
+          case 'ArrowUp':
+            movePieceViewRelative('forward');
+            e.preventDefault();
+            break;
+
+          case 's':
+          case 'S':
+            movePieceViewRelative('backward');
+            e.preventDefault();
+            break;
+
+          case 'a':
+          case 'A':
+          case 'ArrowLeft':
+            movePieceViewRelative('left');
+            e.preventDefault();
+            break;
+
+          case 'd':
+          case 'D':
+          case 'ArrowRight':
+            movePieceViewRelative('right');
+            e.preventDefault();
+            break;
+
+          case 'ArrowDown':
+            stepDown();
+            e.preventDefault();
+            break;
+
+          case 'r':
+          case 'R':
+            rotatePieceViewRelative('pitch');
+            e.preventDefault();
+            break;
+
+          case 't':
+          case 'T':
+            rotatePieceViewRelative('yaw');
+            e.preventDefault();
+            break;
+
+          case 'f':
+          case 'F':
+            rotatePieceViewRelative('roll');
+            e.preventDefault();
+            break;
+
+          case ' ':
+            dropToBottom();
+            e.preventDefault();
+            break;
+
+          case 'p':
+          case 'P':
+            togglePause();
+            e.preventDefault();
+            break;
+        }
+      });
+    }
+
+    // 支持长按连击与点击按压高亮的通用按钮绑定
+    function setupRepeatButton(btnId, actionFn) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      let timer = null;
+      let interval = null;
+
+      const triggerAction = () => {
+        actionFn();
+      };
+
+      const start = (e) => {
+        e.preventDefault();
+        btn.classList.add('pressed');
+        triggerAction();
+        timer = setTimeout(() => {
+          interval = setInterval(triggerAction, 85);
+        }, 220);
+      };
+
+      const stop = () => {
+        btn.classList.remove('pressed');
+        if (timer) clearTimeout(timer);
+        if (interval) clearInterval(interval);
+        timer = null;
+        interval = null;
+      };
+
+      btn.addEventListener('mousedown', start);
+      btn.addEventListener('mouseup', stop);
+      btn.addEventListener('mouseleave', stop);
+      btn.addEventListener('touchstart', start, { passive: false });
+      btn.addEventListener('touchend', stop);
+      btn.addEventListener('touchcancel', stop);
+    }
+
+    // 屏幕按钮与交互绑定
+    function setupButtonEvents() {
+      document.getElementById('btn-restart').addEventListener('click', restartGame);
+      document.getElementById('btn-modal-restart').addEventListener('click', restartGame);
+      document.getElementById('btn-pause').addEventListener('click', togglePause);
+      document.getElementById('btn-practice').addEventListener('click', togglePracticeMode);
+      document.getElementById('btn-sound').addEventListener('click', toggleSound);
+
+      // 尺寸切换
+      document.getElementById('size-5').addEventListener('click', () => switchGridSize(5));
+      document.getElementById('size-7').addEventListener('click', () => switchGridSize(7));
+      document.getElementById('size-9').addEventListener('click', () => switchGridSize(9));
+
+      // 速度切换
+      document.getElementById('speed-select').addEventListener('change', (e) => {
+        currentSpeed = parseFloat(e.target.value) || 1.0;
+        currentDropInterval = Math.round(BASE_DROP_INTERVAL_MS / currentSpeed);
+        if (!isPracticeMode && !isGameOver && !isPaused) {
+          startDropTimer();
+        }
+        showClearToast(`⚡ 下落速度：${currentSpeed}x`);
+      });
+
+      // 视角自适应平移 (支持点击与长按连续触发)
+      setupRepeatButton('ctrl-w', () => movePieceViewRelative('forward'));
+      setupRepeatButton('ctrl-s', () => movePieceViewRelative('backward'));
+      setupRepeatButton('ctrl-a', () => movePieceViewRelative('left'));
+      setupRepeatButton('ctrl-d', () => movePieceViewRelative('right'));
+
+      // 视角自适应三轴旋转 (R前翻, T转向, F侧翻)
+      setupRepeatButton('ctrl-r', () => rotatePieceViewRelative('pitch'));
+      setupRepeatButton('ctrl-t', () => rotatePieceViewRelative('yaw'));
+      setupRepeatButton('ctrl-f', () => rotatePieceViewRelative('roll'));
+
+      // 下移一格 (支持长按滑降) & 直接落底
+      setupRepeatButton('ctrl-step', stepDown);
+      document.getElementById('ctrl-drop').addEventListener('click', dropToBottom);
+    }
+
+    function onWindowResize() {
+      if (!camera || !renderer) return;
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+      if (nextCamera && nextRenderer) {
+        const c = document.getElementById('next-3d-container');
+        if (c && c.clientWidth && c.clientHeight) {
+          nextCamera.aspect = c.clientWidth / c.clientHeight;
+          nextCamera.updateProjectionMatrix();
+          nextRenderer.setSize(c.clientWidth, c.clientHeight);
+        }
+      }
+    }
+
+    // 渲染与动画主循环
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (controls) {
+        controls.update();
+      }
+
+      // 绘制视角联动的雷达小地图
+      drawRadarMinimap();
+
+      // 左侧面板中“下一个方块”3D 平滑缓速自转
+      if (nextPreviewGroup) {
+        nextPreviewGroup.rotation.y += 0.016;
+        nextPreviewGroup.rotation.x = 0.35;
+      }
+      if (nextRenderer && nextScene && nextCamera) {
+        nextRenderer.render(nextScene, nextCamera);
+      }
+
+      if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    // 初始化启动
+    window.addEventListener('DOMContentLoaded', () => {
+      ensureThreeJsLoaded().then(() => {
+        initGrid();
+        initScene();
+        setupKeyboardControls();
+        setupButtonEvents();
+        spawnNewPiece();
+        startDropTimer();
+        animate();
+      }).catch(err => {
+        console.error("Three.js 加载失败:", err);
+      });
+    });
+  </script>
+</body>
+</html>
